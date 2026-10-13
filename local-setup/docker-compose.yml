@@ -1,0 +1,81 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: taskboard  
+      POSTGRES_PASSWORD: superstrongpassword
+      POSTGRES_DB: taskboard
+
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U taskboard -d taskboard"  
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+    ports:
+      - "5432:5432"
+    networks:
+      - backend_network
+
+  backend:
+    image: nti-cicd-backend:latest
+    build: ../app/backend
+    depends_on:
+      - db
+    env_file:
+      - .compose.env
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/ready')\""
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    ports:
+      - "8000:8000"
+    networks:
+      - app_network
+      - backend_network
+
+  frontend:
+    image: nti-cicd-frontend:latest
+    build: ../app/frontend
+    environment:
+      - BACKEND_URL=http://backend:8000
+
+    ports:
+      - "8080:8080"
+    networks:
+      - app_network
+  
+  sonarqube:
+    profiles: ["sonar"]
+    image: sonarqube:community
+    # environment:
+    #   - SONARQUBE_JDBC_URL=jdbc:postgresql://db:5432/sonarqube
+    #   - SONARQUBE_JDBC_USERNAME=sonar
+    #   - SONARQUBE_JDBC_PASSWORD=superstrongpassword
+
+    ports:
+      - "9000:9000"
+    networks:
+      - app_network
+
+volumes:
+  db_data:
+
+networks:
+  app_network:
+  backend_network:
