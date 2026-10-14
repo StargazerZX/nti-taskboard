@@ -1,0 +1,22 @@
+backend:
+  replicas: 1
+  image: ghcr.io/StargazerZX/nti-cicd-backend:latest
+  image_pull: IfNotPresent
+  version: "v1.0.0"
+  environment: "Beta"
+  cors_origins: "*"
+
+db:
+  storageclass: something
+  storagesize: 1Gi
+
+credentials:
+  externalSecret:
+    enabled: true
+    secretStoreRef:
+      name: aws-secretsmanager
+      kind: SecretStore
+    remoteRef:
+      key: my-app/prod/database
+  # user: potatoadmin
+  # password: sooperstrangpasswort

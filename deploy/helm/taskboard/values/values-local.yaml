@@ -1,0 +1,23 @@
+backend:
+  replicas: 1
+  image: nti-cicd-backend:latest
+  image_pull: Never
+  version: "v1.0.0"
+  environment: "Helm"
+  cors_origins: "*"
+
+db:
+  storageclass: standard
+  storagesize: 1Gi
+
+credentials:
+  externalSecret:
+    enabled: false
+    # secretStoreRef:
+    #   name: aws-secretsmanager
+    #   kind: SecretStore
+    # remoteRef:
+    #   key: my-app/prod/database
+  db_name: taskboard
+  user: potatoadmin
+  password: sooperstrangpasswort

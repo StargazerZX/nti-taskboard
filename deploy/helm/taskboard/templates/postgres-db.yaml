@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "mychart.fullname" . }}-postgres-sts
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "mychart.fullname" . }}-postgres
+  serviceName: {{ include "mychart.fullname" . }}-postgres-service
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: {{ include "mychart.fullname" . }}-postgres
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      initContainers:
+        - name: {{ include "mychart.fullname" . }}-fix-perms
+          image: busybox:1.36
+          command:
+            [
+              "sh",
+              "-c",
+              "chown -R 999:0 /var/lib/postgresql/data && chmod -R g+rwX /var/lib/postgresql/data",
+            ]
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+          volumeMounts:
+            - name: {{ include "mychart.fullname" . }}-postgres-data
+              mountPath: /var/lib/postgresql/data
+      containers:
+        - name: {{ include "mychart.fullname" . }}-postgres
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsUser: 999
+          image: postgres:17-alpine
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mychart.fullname" . }}-db-credentials
+                  key: DB_NAME
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mychart.fullname" . }}-db-credentials
+                  key: DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mychart.fullname" . }}-db-credentials
+                  key: DB_PASSWORD
+          startupProbe:
+            tcpSocket:
+              port: 5432
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - "/bin/sh"
+                - "-c"
+                - "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+            successThreshold: 1
+          ports:
+            - containerPort: 5432
+              name: db
+          volumeMounts:
+            - name: {{ include "mychart.fullname" . }}-postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: {{ include "mychart.fullname" . }}-postgres-socket
+              mountPath: /var/run/postgresql
+            - name: {{ include "mychart.fullname" . }}-tmp-dir
+              mountPath: /tmp
+      volumes:
+        - name: {{ include "mychart.fullname" . }}-postgres-socket
+          emptyDir: {}
+        - name: {{ include "mychart.fullname" . }}-tmp-dir
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ include "mychart.fullname" . }}-postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClass: {{ .Values.db.storageclass }}
+        resources:
+          requests:
+            storage: {{ .Values.db.storagesize }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mychart.fullname" . }}-postgres-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  clusterIP: None
+  selector:
+    app: {{ include "mychart.fullname" . }}-postgres
+  ports:
+    - port: 5432
+      targetPort: db
