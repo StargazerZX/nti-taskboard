@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: taskboard
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/StargazerZX/nti-taskboard.git # WHICH repo
+    targetRevision: main # WHICH branch
+    path: deploy/helm/taskboard # WHICH folder (your chart)
+    helm:
+      valueFiles: [values-local.yaml] # WHICH values
+  destination:
+    server: https://kubernetes.default.svc # WHERE: this cluster
+    namespace: taskboard
+  syncPolicy:
+    automated: # deploy changes automatically
+      prune: true # remove what was removed from Git
+      selfHeal: true # undo manual changes (kubectl edit/scale)
+    syncOptions: [CreateNamespace=true]
